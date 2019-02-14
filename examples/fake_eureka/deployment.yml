@@ -1,0 +1,159 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cluster-one
+
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: cluster-one
+  name: eureka-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list"]
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: cluster-one
+  name: eureka-account
+
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: eureka-rolebinding
+  namespace: cluster-one
+subjects:
+  - kind: ServiceAccount
+    name: eureka-account
+    namespace: cluster-one
+roleRef:
+  kind: Role
+  name: eureka-role
+  apiGroup: rbac.authorization.k8s.io
+
+####
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cluster-two
+
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: cluster-two
+  name: eureka-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list"]
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: cluster-two
+  name: eureka-account
+
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: eureka-rolebinding
+  namespace: cluster-two
+subjects:
+  - kind: ServiceAccount
+    name: eureka-account
+    namespace: cluster-two
+roleRef:
+  kind: Role
+  name: eureka-role
+  apiGroup: rbac.authorization.k8s.io
+
+####
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eureka
+  namespace: cluster-one
+  labels:
+    app: eureka-service
+spec:
+  ports:
+    - port: 8761
+      name: eureka
+  selector:
+    app: fake-eureka
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fake-eureka
+  namespace: cluster-one
+spec:
+  selector:
+    matchLabels:
+      app: fake-eureka
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: fake-eureka
+    spec:
+      serviceAccountName: eureka-account
+      containers:
+        - name: fake-eureka
+          image: localhost:5000/fake_eureka:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8761
+              name: eureka
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eureka
+  namespace: cluster-two
+  labels:
+    app: eureka-service
+spec:
+  ports:
+    - port: 8761
+      name: eureka
+  selector:
+    app: fake-eureka
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fake-eureka
+  namespace: cluster-two
+spec:
+  selector:
+    matchLabels:
+      app: fake-eureka
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: fake-eureka
+    spec:
+      serviceAccountName: eureka-account
+      containers:
+        - name: fake-eureka
+          image: localhost:5000/fake_eureka:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8761
+              name: eureka

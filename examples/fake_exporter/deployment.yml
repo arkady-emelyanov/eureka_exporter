@@ -1,0 +1,59 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cluster-one
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cluster-two
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fake-exporter
+  namespace: cluster-one
+spec:
+  selector:
+    matchLabels:
+      app: fake-exporter
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: fake-exporter
+    spec:
+      containers:
+        - name: fake-exporter
+          image: localhost:5000/fake_exporter:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: prometheus
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fake-exporter
+  namespace: cluster-two
+spec:
+  selector:
+    matchLabels:
+      app: fake-exporter
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: fake-exporter
+    spec:
+      containers:
+        - name: fake-exporter
+          image: localhost:5000/fake_exporter:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: prometheus
