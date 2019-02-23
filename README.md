@@ -1,7 +1,8 @@
 # Eureka Prometheus Exporter
 
 Experimental project for collecting metrics from 
-Eureka attached services running inside of Kubernetes cluster.
+[Netflix Eureka](https://github.com/Netflix/eureka) attached services 
+running inside of Kubernetes cluster.
 
 
 ## Overview
@@ -119,7 +120,7 @@ scrape_configs:
     - targets: ['192.168.99.100:31000']
 ```
 
-Run `./prometheus`
+Run `./prometheus`, observe results.
 
 
 ## Next steps
