@@ -1,7 +1,46 @@
 # Eureka Prometheus Exporter
 
 Experimental project for collecting metrics from 
-Eureka attached services running inside of Kubernetes cluster
+Eureka attached services running inside of Kubernetes cluster.
+
+
+## Overview
+```
+                          +---------------------------------------------------------+
+                          |Kubernetes cluster                                       |
+                          |---------------------------------------------------------|
+                          |                                                         |
+                          | +---------------+  +---------------+ +----------------+ |
+                          | |NS: monitoring |  |NS: staging    | |NS: live        | |
+                          | |---------------|  |---------------| |----------------| |
+   +------------------+   | |               |  |               | |                | |
+   |                  |   | | +-----------+ |  |               | |                | |
+   |    Prometheus    +------>|Exporter   +-------------+-----------------+       | |
+   |                  |   | | +-----+-----+ |  |        |      | |        |       | |
+   +------------------+   | |       |       |  |        |      | |        |       | |
+                          | |       |       |  | +------v----+ | | +------v-----+ | |
+                          | |       |       |  | |Eureka #1  | | | |Eureka #2   | | |
+                          | |       |       |  | +-----------+ | | +------------+ | |
+                          | |       |       |  |               | |                | |
+                          | |       |       |  | +-----------+ | |                | |
+                          | |       +----------->|Service #1 | | |                | |
+                          | |               |  | +-----------+ | |                | |
+                          | |               |  |               | |                | |
+                          | +---------------+  +---------------+ +----------------+ |
+                          |                                                         |
+                          +---------------------------------------------------------+
+
+```
+
+* Expose Prometheus endpoint
+* On each Prometheus collect request
+    * Search for Eureka services across all namespaces
+    * Call each Eureka endpoint and fetch currently attached microservices
+    * For each microservice which exposes promethesURI metadata
+        * Call microservice and collect metrics
+* Relabel all collected metrics (enrich with app and namespace labels)
+* Return all collected metrics back to Prometheus
+
 
 ## Minikube
 
