@@ -3,31 +3,40 @@ package kube
 import (
 	"flag"
 	"io/ioutil"
-	"k8s.io/client-go/kubernetes"
 	"log"
 	"os"
 	"path/filepath"
 
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-var kubeconfig *rest.Config
+const (
+	namespaceFile = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+)
+
+var (
+	client *kubernetes.Clientset
+)
 
 func init() {
 	config, err := getConfig()
 	if err != nil {
 		panic(err)
 	}
-	kubeconfig = config
+	client, err = kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err)
+	}
 }
 
-func GetClient() (*kubernetes.Clientset, error) {
-	return kubernetes.NewForConfig(kubeconfig)
+func GetClient() *kubernetes.Clientset {
+	return client
 }
 
 func InCluster() bool {
-	_, err := os.Stat("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+	_, err := os.Stat(namespaceFile)
 	return err == nil
 }
 
@@ -36,7 +45,7 @@ func GetNamespace() string {
 		return ""
 	}
 
-	b, err := ioutil.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+	b, err := ioutil.ReadFile(namespaceFile)
 	if err != nil {
 		log.Printf("Error getting namespace from /var/run: %s", err)
 		return ""

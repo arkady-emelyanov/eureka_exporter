@@ -1,31 +1,29 @@
 package main
 
 import (
-	"bytes"
-	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/expfmt"
 
-	"github.com/arkady-emelyanov/eureka_exporter/exporter"
 	"github.com/arkady-emelyanov/eureka_exporter/pkg/kube"
+	"github.com/arkady-emelyanov/eureka_exporter/pkg/models"
+	"github.com/arkady-emelyanov/eureka_exporter/pkg/utils"
 )
 
 const (
-	eurekaTimeoutMs     = 5000
-	eurekaLabelSelector = "app=eureka-service"
+	httpTimeoutMs = 5000
+	labelSelector = "app=eureka-service"
 )
 
 var (
-	httpTimeout = time.Duration(time.Duration(eurekaTimeoutMs) * time.Millisecond)
+	httpTimeout = time.Duration(time.Duration(httpTimeoutMs) * time.Millisecond)
 	inCluster   = false
 )
 
+//
 func init() {
 	inCluster = kube.InCluster()
 	if inCluster == false {
@@ -38,167 +36,98 @@ func init() {
 //
 func main() {
 	log.Printf("Listening on :8080")
-	http.HandleFunc("/", prometheusHandler)
+	http.HandleFunc("/", promHandler)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-func prometheusHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("Searching for eureka services...")
-	eurekaList, err := exporter.GetEurekaUrlList(eurekaLabelSelector, inCluster)
+//
+func promHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Collect request: %s", r.RequestURI)
+	svcList, err := utils.DiscoverServices(labelSelector, inCluster)
 	if err != nil {
 		panic(err)
 	}
 
-	//
-	log.Printf("Found: %d endpoints in cluster\n", len(eurekaList))
-	appList := getAppList(eurekaList)
-	metrics := getAppMetrics(appList)
-	if err := writeMetrics(w, metrics); err != nil {
+	log.Printf("Found: %d endpoints in cluster\n", len(svcList))
+	appList := getApps(svcList)
+	metrics := getMetrics(appList)
+
+	if _, err := utils.WriteMetrics(w, metrics); err != nil {
 		panic(err)
 	}
 }
 
 //
-func writeMetrics(w io.Writer, metrics []map[string]*io_prometheus_client.MetricFamily) error {
-	var buf bytes.Buffer
-	metricEncoder := expfmt.NewEncoder(&buf, expfmt.FmtText)
-	for _, mf := range metrics {
-		for _, v := range mf {
-			if err := metricEncoder.Encode(v); err != nil {
-				panic(err)
-			}
-		}
-	}
+func getApps(list []models.Endpoint) []models.Endpoint {
+	var wg sync.WaitGroup
 
-	log.Printf("Final response length: %d bytes\n", buf.Len())
-	if _, err := w.Write(buf.Bytes()); err != nil {
-		panic(err)
-	}
-	return nil
-}
-
-//
-func getAppList(list []exporter.Endpoint) []exporter.Endpoint {
-	endpointChan := make(chan exporter.Endpoint)
-	endpointList := make([]exporter.Endpoint, 0)
+	resList := make([]models.Endpoint, 0)
+	resChan := make(chan *models.Endpoint)
 	done := make(chan bool)
 
 	go func() {
 		for {
-			endpoint := <-endpointChan
-			if endpoint.IsEmpty() {
+			e := <-resChan
+			if e == nil {
 				break
 			}
-			endpointList = append(endpointList, endpoint)
+			resList = append(resList, *e)
 		}
 		done <- true
 	}()
 
-	var wg sync.WaitGroup
-	for _, endpoint := range list {
-		wg.Add(1)
-		go func(endpoint exporter.Endpoint) {
-			found := discoverEndpoints(endpoint, httpTimeout, inCluster)
-			for _, e := range found {
-				endpointChan <- e
+	wg.Add(len(list))
+	for _, eurekaEndpoint := range list {
+		go func(eurekaEndpoint models.Endpoint) {
+			apps := utils.FetchApps(eurekaEndpoint, httpTimeout)
+			for _, app := range apps {
+				if appEndpoint := utils.FormatEndpoint(app, inCluster); appEndpoint != nil {
+					resChan <- appEndpoint
+				}
 			}
 			wg.Done()
-		}(endpoint)
+		}(eurekaEndpoint)
 	}
 
 	wg.Wait()
-	close(endpointChan)
+	close(resChan)
 
 	<-done
-	return endpointList
+	return resList
 }
 
 //
-func getAppMetrics(list []exporter.Endpoint) []map[string]*io_prometheus_client.MetricFamily {
-	metricChan := make(chan map[string]*io_prometheus_client.MetricFamily)
-	metricList := make([]map[string]*io_prometheus_client.MetricFamily, 0)
+func getMetrics(list []models.Endpoint) []map[string]*io_prometheus_client.MetricFamily {
+	var wg sync.WaitGroup
+
+	resList := make([]map[string]*io_prometheus_client.MetricFamily, 0)
+	resChan := make(chan map[string]*io_prometheus_client.MetricFamily)
 	done := make(chan bool)
 
 	go func() {
 		for {
-			metrics := <-metricChan
-			if metrics == nil {
+			m := <-resChan
+			if m == nil {
 				break
 			}
-			metricList = append(metricList, metrics)
+			resList = append(resList, m)
 		}
 		done <- true
 	}()
 
-	var wg sync.WaitGroup
-	for _, endpoint := range list {
-		wg.Add(1)
-		go func(endpoint exporter.Endpoint) {
-			metrics := fetchMetrics(endpoint, httpTimeout, inCluster)
-			if metrics != nil {
-				metricChan <- metrics
+	wg.Add(len(list))
+	for _, appEndpoint := range list {
+		go func(appEndpoint models.Endpoint) {
+			if m := utils.FetchMetrics(appEndpoint, httpTimeout); m != nil {
+				resChan <- m
 			}
 			wg.Done()
-		}(endpoint)
+		}(appEndpoint)
 	}
 
 	wg.Wait()
-	close(metricChan)
+	close(resChan)
 
 	<-done
-	return metricList
-}
-
-//
-func discoverEndpoints(endpoint exporter.Endpoint, timeout time.Duration, inCluster bool) []exporter.Endpoint {
-	body, err := getResponse(endpoint.URL, timeout)
-	if err != nil {
-		log.Printf("Error calling URL: %s %v, skipping...", endpoint.URL, err)
-		return nil
-	}
-
-	bodyReader := bytes.NewReader(body)
-	appList, err := exporter.ParseEurekaResponse(bodyReader, endpoint.Namespace)
-	if err != nil {
-		log.Printf("Error parsing response body, URL: %s %v, skipping...", endpoint.URL, err)
-		return nil
-	}
-
-	log.Printf("Found %d application(s) in Eureka response, namespace: %s\n", len(appList), endpoint.Namespace)
-	return exporter.FormatAppEndpoints(appList, inCluster)
-}
-
-//
-func fetchMetrics(endpoint exporter.Endpoint, timeout time.Duration, inCluster bool) map[string]*io_prometheus_client.MetricFamily {
-	body, err := getResponse(endpoint.URL, timeout)
-	if err != nil {
-		log.Printf("Error calling endpoint: %s response: %v, skipping...", endpoint.URL, err)
-	}
-
-	metricReader := bytes.NewReader(body)
-	metrics, err := exporter.ParsePromResponse(metricReader, endpoint.Namespace, endpoint.Name)
-	if err != nil {
-		log.Printf("Error parsing Prometheus response from: %s, %v, skipping...", endpoint.URL, err)
-	}
-
-	return metrics
-}
-
-//
-func getResponse(url string, timeout time.Duration) ([]byte, error) {
-	log.Printf("Calling: %s\n", url)
-
-	client := http.Client{Timeout: timeout}
-	resp, err := client.Get(url)
-	if err != nil {
-		return nil, err
-	}
-
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			log.Printf("Error closing body for URL: %s, err: %v", url, err)
-		}
-	}()
-
-	return ioutil.ReadAll(resp.Body)
+	return resList
 }

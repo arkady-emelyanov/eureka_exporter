@@ -1,4 +1,4 @@
-package exporter
+package utils
 
 import (
 	"encoding/xml"
@@ -46,7 +46,7 @@ func ParseEurekaResponse(r io.Reader, namespace string) ([]models.Instance, erro
 	return appList, nil
 }
 
-func ParsePromResponse(r io.Reader, namespace, app string) (map[string]*io_prometheus_client.MetricFamily, error) {
+func ParsePromResponse(r io.Reader, app, namespace string) (map[string]*io_prometheus_client.MetricFamily, error) {
 	parser := expfmt.TextParser{}
 	m, err := parser.TextToMetricFamilies(r)
 	if err != nil {
