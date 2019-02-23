@@ -13,7 +13,7 @@ import (
 	"github.com/arkady-emelyanov/eureka_exporter/pkg/models"
 )
 
-func ParseEurekaResponse(r io.Reader, namespace string) ([]models.Instance, error) {
+func parseEurekaResponse(r io.Reader, namespace string) ([]models.Instance, error) {
 	var appList []models.Instance
 
 	decoder := xml.NewDecoder(r)
@@ -46,7 +46,7 @@ func ParseEurekaResponse(r io.Reader, namespace string) ([]models.Instance, erro
 	return appList, nil
 }
 
-func ParsePromResponse(r io.Reader, app, namespace string) (map[string]*io_prometheus_client.MetricFamily, error) {
+func parsePromResponse(r io.Reader, app, namespace string) (map[string]*io_prometheus_client.MetricFamily, error) {
 	parser := expfmt.TextParser{}
 	m, err := parser.TextToMetricFamilies(r)
 	if err != nil {

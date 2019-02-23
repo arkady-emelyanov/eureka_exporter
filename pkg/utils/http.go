@@ -13,24 +13,6 @@ import (
 	"github.com/prometheus/common/expfmt"
 )
 
-func GetResponse(url string, timeout time.Duration) ([]byte, error) {
-	log.Printf("Calling: %s\n", url)
-
-	c := http.Client{Timeout: timeout}
-	r, err := c.Get(url)
-	if err != nil {
-		return nil, err
-	}
-
-	defer func() {
-		if err := r.Body.Close(); err != nil {
-			log.Printf("Error closing body for URL: %s, err: %v", url, err)
-		}
-	}()
-
-	return ioutil.ReadAll(r.Body)
-}
-
 //
 func WriteMetrics(w io.Writer, metrics []map[string]*io_prometheus_client.MetricFamily) (int, error) {
 	var buf bytes.Buffer
@@ -50,14 +32,14 @@ func WriteMetrics(w io.Writer, metrics []map[string]*io_prometheus_client.Metric
 
 //
 func FetchApps(e models.Endpoint, t time.Duration) []models.Instance {
-	b, err := GetResponse(e.URL, t)
+	b, err := getResponse(e.URL, t)
 	if err != nil {
 		log.Printf("Error calling URL: %s %v, skipping...", e.URL, err)
 		return nil
 	}
 
 	r := bytes.NewReader(b)
-	apps, err := ParseEurekaResponse(r, e.Namespace)
+	apps, err := parseEurekaResponse(r, e.Namespace)
 	if err != nil {
 		log.Printf("Error parsing response: %s, %v, skipping...", e.URL, err)
 		return nil
@@ -69,18 +51,36 @@ func FetchApps(e models.Endpoint, t time.Duration) []models.Instance {
 
 //
 func FetchMetrics(e models.Endpoint, t time.Duration) map[string]*io_prometheus_client.MetricFamily {
-	b, err := GetResponse(e.URL, t)
+	b, err := getResponse(e.URL, t)
 	if err != nil {
 		log.Printf("Error calling endpoint: %s, %v, skipping...", e.URL, err)
 		return nil
 	}
 
 	r := bytes.NewReader(b)
-	m, err := ParsePromResponse(r, e.Name, e.Namespace)
+	m, err := parsePromResponse(r, e.Name, e.Namespace)
 	if err != nil {
 		log.Printf("Error parsing response: %s, %v, skipping...", e.URL, err)
 		return nil
 	}
 
 	return m
+}
+
+func getResponse(url string, timeout time.Duration) ([]byte, error) {
+	log.Printf("Calling: %s\n", url)
+
+	c := http.Client{Timeout: timeout}
+	r, err := c.Get(url)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			log.Printf("Error closing body for URL: %s, err: %v", url, err)
+		}
+	}()
+
+	return ioutil.ReadAll(r.Body)
 }

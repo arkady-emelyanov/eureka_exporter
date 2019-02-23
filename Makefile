@@ -10,6 +10,8 @@ mini-apply:
 .PHONY: mini-delete
 mini-delete:
 	kubectl delete ns monitoring
+	kubectl delete clusterrolebinding eureka-exporter-rolebinding
+	kubectl delete clusterrole eureka-exporter-role
 
 .PHONY: fake-build
 fake-build:
