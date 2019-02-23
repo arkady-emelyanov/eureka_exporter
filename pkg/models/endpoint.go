@@ -1,8 +1,9 @@
 package models
 
 type Context struct {
-	Name      string
-	Namespace string
+	InstanceId string
+	Name       string
+	Namespace  string
 }
 
 type Endpoint struct {

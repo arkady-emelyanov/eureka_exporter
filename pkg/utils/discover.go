@@ -2,8 +2,8 @@ package utils
 
 import (
 	"fmt"
-	"log"
 
+	"github.com/rs/zerolog/log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 
@@ -31,6 +31,11 @@ func DiscoverServices(selector string, inCluster bool) ([]models.Endpoint, error
 
 	// take only the first port: eureka rest port
 	for i, s := range svcList.Items {
+		if len(s.Spec.Ports) > 1 {
+			log.Warn().
+				Int("count", len(s.Spec.Ports)).
+				Msg("Multiple ports found, only first will be taken")
+		}
 		for _, p := range s.Spec.Ports {
 			context := models.Context{
 				Namespace: s.Namespace,
@@ -67,7 +72,10 @@ func DiscoverServices(selector string, inCluster bool) ([]models.Endpoint, error
 //
 func FormatEndpoint(app models.Instance, inCluster bool) *models.Endpoint {
 	if app.Port.Enabled == false {
-		log.Printf("Insecure port for %s/%s is disabled, skipping..", app.Namespace, app.Name)
+		log.Info().
+			Str("namespace", app.Namespace).
+			Str("name", app.Name).
+			Msg("Insecure port disabled, skipping application")
 		return nil
 	}
 
@@ -79,7 +87,10 @@ func FormatEndpoint(app models.Instance, inCluster bool) *models.Endpoint {
 		}
 	}
 	if metricsUri == "" {
-		log.Printf("No PrometheusURI for %s/%s, skipping..", app.Namespace, app.Name)
+		log.Info().
+			Str("namespace", app.Namespace).
+			Str("name", app.Name).
+			Msg("No Metadata/PrometheusURI found, skipping..")
 		return nil
 	}
 

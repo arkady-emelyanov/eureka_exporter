@@ -1,12 +1,12 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/prometheus/client_model/go"
+	"github.com/rs/zerolog/log"
 
 	"github.com/arkady-emelyanov/eureka_exporter/pkg/kube"
 	"github.com/arkady-emelyanov/eureka_exporter/pkg/models"
@@ -27,33 +27,56 @@ var (
 func init() {
 	inCluster = kube.InCluster()
 	if inCluster == false {
-		log.Println("Running outside of Kubernetes cluster, make sure `kubectl proxy` is running...")
+		log.Info().Msg("Running outside of Kubernetes cluster, make sure `kubectl proxy` is running...")
 	} else {
-		log.Println("Kubernetes cluster detected.")
+		log.Info().Msg("Kubernetes cluster detected.")
 	}
 }
 
-//
 func main() {
-	log.Printf("Listening on :8080")
-	http.HandleFunc("/", promHandler)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	// TODO: flags
+	log.Info().
+		Str("port", "8080").
+		Msg("Listening on :8080")
+
+	if err := http.ListenAndServe(":8080", http.HandlerFunc(promHandler)); err != nil {
+		log.Fatal().
+			Err(err).
+			Msg("Failed to start http server")
+	}
 }
 
 //
 func promHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("Collect request: %s", r.RequestURI)
+	log.Info().
+		Str("uri", r.RequestURI).
+		Msg("New collect request")
+
 	svcList, err := utils.DiscoverServices(labelSelector, inCluster)
 	if err != nil {
-		panic(err)
+		log.Error().Str("selector", labelSelector).Err(err).Msg("Failed to discover")
+		w.WriteHeader(http.StatusInternalServerError)
+		if _, err := w.Write([]byte{}); err != nil {
+			log.Error().Str("uri", r.RequestURI).Err(err).Msg("Failed to write response")
+		}
+		return
 	}
 
-	log.Printf("Found: %d endpoints in cluster\n", len(svcList))
+	log.Info().
+		Int("found", len(svcList)).
+		Msg("Eureka discovery finished")
+
 	appList := getApps(svcList)
 	metrics := getMetrics(appList)
 
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+
 	if _, err := utils.WriteMetrics(w, metrics); err != nil {
-		panic(err)
+		log.Error().
+			Str("uri", r.RequestURI).
+			Err(err).
+			Msg("Failed to write response")
 	}
 }
 

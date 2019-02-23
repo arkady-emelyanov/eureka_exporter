@@ -2,20 +2,24 @@ package utils
 
 import (
 	"bytes"
-	"github.com/arkady-emelyanov/eureka_exporter/pkg/models"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/rs/zerolog/log"
+
+	"github.com/arkady-emelyanov/eureka_exporter/pkg/models"
 )
 
 //
 func WriteMetrics(w io.Writer, metrics []map[string]*io_prometheus_client.MetricFamily) (int, error) {
 	var buf bytes.Buffer
+
+	log.Debug().
+		Msg("Encoding response...")
 
 	enc := expfmt.NewEncoder(&buf, expfmt.FmtText)
 	for _, m := range metrics {
@@ -26,7 +30,10 @@ func WriteMetrics(w io.Writer, metrics []map[string]*io_prometheus_client.Metric
 		}
 	}
 
-	log.Printf("Final response length: %d bytes\n", buf.Len())
+	log.Info().
+		Int("length", buf.Len()).
+		Msg("Writing response...")
+
 	return w.Write(buf.Bytes())
 }
 
@@ -34,33 +41,62 @@ func WriteMetrics(w io.Writer, metrics []map[string]*io_prometheus_client.Metric
 func FetchApps(e models.Endpoint, t time.Duration) []models.Instance {
 	b, err := getResponse(e.URL, t)
 	if err != nil {
-		log.Printf("Error calling URL: %s %v, skipping...", e.URL, err)
+		log.Error().
+			Str("url", e.URL).
+			Str("namespace", e.Namespace).
+			Str("name", e.Name).
+			Err(err).
+			Msg("Error calling URL")
 		return nil
 	}
 
 	r := bytes.NewReader(b)
-	apps, err := parseEurekaResponse(r, e.Namespace)
+	l, err := parseEurekaResponse(r, e)
 	if err != nil {
-		log.Printf("Error parsing response: %s, %v, skipping...", e.URL, err)
+		log.Error().
+			Str("url", e.URL).
+			Str("namespace", e.Namespace).
+			Str("name", e.Name).
+			Err(err).
+			Msg("Error parsing XML response")
 		return nil
 	}
 
-	log.Printf("Found %d application(s), namespace: %s\n", len(apps), e.Namespace)
-	return apps
+	log.Debug().
+		Str("url", e.URL).
+		Str("namespace", e.Namespace).
+		Str("name", e.Name).
+		Int("count", len(l)).
+		Err(err).
+		Msg("Found Prometheus-enabled applications")
+
+	return l
 }
 
 //
 func FetchMetrics(e models.Endpoint, t time.Duration) map[string]*io_prometheus_client.MetricFamily {
 	b, err := getResponse(e.URL, t)
 	if err != nil {
-		log.Printf("Error calling endpoint: %s, %v, skipping...", e.URL, err)
+		log.Error().
+			Str("url", e.URL).
+			Str("namespace", e.Namespace).
+			Str("name", e.Name).
+			Err(err).
+			Msg("Error calling URL")
+
 		return nil
 	}
 
 	r := bytes.NewReader(b)
-	m, err := parsePromResponse(r, e.Name, e.Namespace)
+	m, err := parsePromResponse(r, e)
 	if err != nil {
-		log.Printf("Error parsing response: %s, %v, skipping...", e.URL, err)
+		log.Error().
+			Str("url", e.URL).
+			Str("namespace", e.Namespace).
+			Str("name", e.Name).
+			Err(err).
+			Msg("Error parsing Prometheus response")
+
 		return nil
 	}
 
@@ -68,7 +104,9 @@ func FetchMetrics(e models.Endpoint, t time.Duration) map[string]*io_prometheus_
 }
 
 func getResponse(url string, timeout time.Duration) ([]byte, error) {
-	log.Printf("Calling: %s\n", url)
+	log.Debug().
+		Str("url", url).
+		Msg("Dialing")
 
 	c := http.Client{Timeout: timeout}
 	r, err := c.Get(url)
@@ -78,7 +116,10 @@ func getResponse(url string, timeout time.Duration) ([]byte, error) {
 
 	defer func() {
 		if err := r.Body.Close(); err != nil {
-			log.Printf("Error closing body for URL: %s, err: %v", url, err)
+			log.Error().
+				Str("url", url).
+				Err(err).
+				Msg("Error closing response body")
 		}
 	}()
 

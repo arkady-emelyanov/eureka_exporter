@@ -3,17 +3,17 @@ package utils
 import (
 	"encoding/xml"
 	"io"
-	"log"
 	"strings"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/rs/zerolog/log"
 
 	"github.com/arkady-emelyanov/eureka_exporter/pkg/models"
 )
 
-func parseEurekaResponse(r io.Reader, namespace string) ([]models.Instance, error) {
+func parseEurekaResponse(r io.Reader, e models.Endpoint) ([]models.Instance, error) {
 	var appList []models.Instance
 
 	decoder := xml.NewDecoder(r)
@@ -32,12 +32,15 @@ func parseEurekaResponse(r io.Reader, namespace string) ([]models.Instance, erro
 			if typ.Name.Local == models.InstanceTag {
 				var app models.Instance
 				if err := decoder.DecodeElement(&app, &typ); err != nil {
-					log.Printf("Failed to decode xml element: %v, skipping...", err)
+					log.Error().
+						Err(err).
+						Msg("Error decoding element")
 					break
 				}
 
-				app.Namespace = namespace
+				app.Namespace = e.Namespace
 				app.Name = strings.ToLower(app.Name)
+				app.InstanceId = strings.ToLower(app.InstanceId)
 				appList = append(appList, app)
 			}
 		}
@@ -46,7 +49,7 @@ func parseEurekaResponse(r io.Reader, namespace string) ([]models.Instance, erro
 	return appList, nil
 }
 
-func parsePromResponse(r io.Reader, app, namespace string) (map[string]*io_prometheus_client.MetricFamily, error) {
+func parsePromResponse(r io.Reader, e models.Endpoint) (map[string]*io_prometheus_client.MetricFamily, error) {
 	parser := expfmt.TextParser{}
 	m, err := parser.TextToMetricFamilies(r)
 	if err != nil {
@@ -58,11 +61,15 @@ func parsePromResponse(r io.Reader, app, namespace string) (map[string]*io_prome
 			// re-label response
 			m.Label = append(m.Label, &io_prometheus_client.LabelPair{
 				Name:  proto.String("namespace"),
-				Value: proto.String(namespace),
+				Value: proto.String(e.Namespace),
 			})
 			m.Label = append(m.Label, &io_prometheus_client.LabelPair{
 				Name:  proto.String("app"),
-				Value: proto.String(app),
+				Value: proto.String(e.Name),
+			})
+			m.Label = append(m.Label, &io_prometheus_client.LabelPair{
+				Name:  proto.String("instanceId"),
+				Value: proto.String(e.InstanceId),
 			})
 		}
 	}

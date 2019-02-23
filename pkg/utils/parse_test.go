@@ -1,9 +1,11 @@
 package utils
 
 import (
-	"github.com/stretchr/testify/require"
+	"github.com/arkady-emelyanov/eureka_exporter/pkg/models"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestParsePromResponse(t *testing.T) {
@@ -12,8 +14,15 @@ func TestParsePromResponse(t *testing.T) {
 go_memstats_heap_objects 1967
 `
 	r := strings.NewReader(s)
-	m, err := parsePromResponse(r, "example", "default")
+	e := models.Endpoint{
+		Context: models.Context{
+			Namespace: "default",
+			Name: "example",
+			InstanceId: "123-321-123",
+		},
+	}
 
+	m, err := parsePromResponse(r, e)
 	require.NoError(t, err)
 	require.Len(t, m, 1)
 }
@@ -30,17 +39,22 @@ func TestParseEurekaResponse(t *testing.T) {
 		<prometheusURI>/metrics</prometheusURI>
 	</metadata>
 	<actionType>ADDED</actionType>
-	<instanceId>fake-exporter-5554b8f746-g6b7s</instanceId>
+	<instanceId>fake-exporter-5554b8f746-g6b7s:34583714-2576-4238-a4a9-9bb95e568033</instanceId>
 </instance>
 </application>
 </applications>
 `
 	r := strings.NewReader(s)
-	m, err := parseEurekaResponse(r, "default")
+	e := models.Endpoint{
+		Context: models.Context{
+			Namespace: "default",
+		},
+	}
 
+	m, err := parseEurekaResponse(r, e)
 	require.NoError(t, err)
 	require.Len(t, m, 1)
-
+	require.Equal(t, "fake-exporter-5554b8f746-g6b7s:34583714-2576-4238-a4a9-9bb95e568033", m[0].InstanceId)
 	require.Equal(t, "fake-exporter", m[0].Name)
 	require.Equal(t, "default", m[0].Namespace)
 	require.Equal(t, "172.17.0.8", m[0].IpAddress)
