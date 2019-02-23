@@ -1,37 +1,57 @@
 package kube
 
 import (
-	"flag"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	"github.com/rs/zerolog/log"
+	flag "github.com/spf13/pflag"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
 const (
-	k8sNsFile = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+	KubernetesConfigFlag = "config"
+	k8sNsFile            = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 )
 
 var (
-	client *kubernetes.Clientset
+	kubeconfig *string
+	client     *kubernetes.Clientset
 )
 
 func init() {
-	config, err := getConfig()
-	if err != nil {
-		panic(err)
-	}
-	client, err = kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err)
+	if home := homeDir(); home != "" {
+		kubeconfig = flag.StringP(
+			KubernetesConfigFlag,
+			"c",
+			filepath.Join(homeDir(), ".kube", "config"),
+			"Path to the kubernetes configuration file",
+		)
+	} else {
+		kubeconfig = flag.StringP(
+			KubernetesConfigFlag,
+			"c",
+			"",
+			"Path to the kubernetes configuration file",
+		)
 	}
 }
 
 func GetClient() *kubernetes.Clientset {
+	if client == nil {
+		config, err := getConfig()
+		if err != nil {
+			panic(err)
+		}
+		client, err = kubernetes.NewForConfig(config)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	return client
 }
 
@@ -65,24 +85,6 @@ func getConfig() (*rest.Config, error) {
 		return clusterConfig, nil
 	}
 
-	// try next one
-	var kubeconfig *string
-	if home := homeDir(); home != "" {
-		kubeconfig = flag.String(
-			"kubeconfig",
-			filepath.Join(home, ".kube", "config"),
-			"(optional) absolute path to the kubeconfig file",
-		)
-	} else {
-		kubeconfig = flag.String(
-			"kubeconfig",
-			"",
-			"absolute path to the kubeconfig file",
-		)
-	}
-	flag.Parse()
-
-	// use the current context in kubeconfig
 	localConfig, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
 		return nil, err

@@ -20,9 +20,9 @@ const (
 )
 
 // DiscoverServices returns list of Eureka services found across all namespaces
-func DiscoverServices(selector string, inCluster bool) ([]models.Endpoint, error) {
+func DiscoverServices(namespace, selector string, inCluster bool) ([]models.Endpoint, error) {
 	svcLabelSelector := metav1.ListOptions{LabelSelector: selector}
-	svcList, err := kube.GetClient().CoreV1().Services("").List(svcLabelSelector)
+	svcList, err := kube.GetClient().CoreV1().Services(namespace).List(svcLabelSelector)
 	if err != nil {
 		return nil, err
 	}

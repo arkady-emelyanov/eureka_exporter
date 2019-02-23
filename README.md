@@ -1,9 +1,10 @@
 # Eureka Prometheus Exporter
 
 Experimental project for collecting metrics from 
-[Netflix Eureka](https://github.com/Netflix/eureka) attached services 
+[Netflix Eureka](https://github.com/Netflix/eureka) attached application instances 
 running inside of Kubernetes cluster.
 
+The goal is to collect metrics outside of Kubernetes (external monitoring).
 
 ## Overview
 ```
@@ -33,36 +34,37 @@ running inside of Kubernetes cluster.
 
 ```
 
-* Expose Prometheus endpoint
-* On each Prometheus collect request
-    * Search for Eureka services across all namespaces
-    * Call each Eureka endpoint and fetch currently attached microservices
-    * For each microservice which exposes promethesURI metadata
-        * Call microservice and collect metrics
-* Relabel all collected metrics (enrich with app and namespace labels)
-* Return all collected metrics back to Prometheus
+* Expose `eureka-exporter` endpoint either via `NodePort` or `Ingress`
+* Point Prometheus to `eureka-exporter` endpoint
+* On each Prometheus collect request, eureka-exporter will:
+    * Discover Eureka services across all namespaces or configured namespace
+    * Call each found Eureka endpoint and collect attached instances
+    * For each instance which exposes promethesURI metadata:
+        * Collect metrics
+    * Relabel all collected metrics (enrich with `app`, `namespace` and `instanceId` labels)
+    * Return all collected and relabeled metrics back to Prometheus
 
+## Requirements
 
-## Minikube
+* Minikube up'n'running
+* Docker
+
+## Minikube playground
 
 Create minikube cluster:
 ```
+$ minikube start
+...
+
 $ minikube status
 minikube: Running
 cluster: Running
 kubectl: Correctly Configured: pointing to minikube-vm at 192.168.99.100
 ```
 
-Deploy `fake-eureka` and `fake-exporter` pods to Kubernetes cluster:
+Deploy everything to minikube:
 ```
-$ make fake-build
-$ make fake-apply
-```
-
-Build and deploy `eureka-exporter` pod to Kubernetes cluster:
-```
-$ make mini-build
-$ make mini-apply
+$ make minikube
 ```
 
 Make sure pods are running:
@@ -78,7 +80,7 @@ cluster-two   fake-exporter-5554b8f746-s5xls     1/1       Running   0          
 monitoring    eureka-exporter-5cb869d444-wlpkm   1/1       Running   0          24s
 ```
 
-Check services:
+Make sure all services up and running:
 ```
 > kubectl get svc --all-namespaces -l subject=eureka-exporter
 NAMESPACE     NAME              TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
@@ -87,7 +89,9 @@ cluster-two   eureka            ClusterIP   10.97.143.88    <none>        8761/T
 monitoring    eureka-exporter   NodePort    10.99.11.12     <none>        8080:31000/TCP   28s
 ```
 
-### Getting metrics
+### Checking metrics
+
+> fake-exporter is just a Prometheus example app.
 
 ```
 > minikube ip
@@ -120,10 +124,19 @@ scrape_configs:
     - targets: ['192.168.99.100:31000']
 ```
 
-Run `./prometheus`, observe results.
+Run `./prometheus` and check Prometheus UI: `localhost:9090`.
 
 
-## Next steps
+## Options
 
-* Configuration options support
-* Tests
+```
+> go build
+> ./eureka_exporter -h
+  -c, --config string      Path to the kubernetes configuration file (default "/Users/arkady/.kube/config")
+  -d, --debug              Display debug output
+  -h, --help               Display help
+  -n, --namespace string   Namespace to search, default: search all
+  -p, --port int           Server listen port (default 8080)
+  -s, --selector string    Eureka service selector (default "app=eureka-service")
+  -t, --test               Test, do not run webserver, discover and exit (requires 'kubectl proxy')
+```

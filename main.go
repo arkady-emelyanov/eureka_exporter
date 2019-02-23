@@ -1,12 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/prometheus/client_model/go"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	flag "github.com/spf13/pflag"
 
 	"github.com/arkady-emelyanov/eureka_exporter/pkg/kube"
 	"github.com/arkady-emelyanov/eureka_exporter/pkg/models"
@@ -21,40 +25,76 @@ const (
 var (
 	httpTimeout = time.Duration(time.Duration(httpTimeoutMs) * time.Millisecond)
 	inCluster   = false
+
+	namespace *string
+	selector  *string
 )
 
-//
-func init() {
+func main() {
+	// global
+	namespace = flag.StringP("namespace", "n", "", "Namespace to search, default: search all")
+	selector = flag.StringP("selector", "s", labelSelector, "Eureka service selector")
+
+	// local
+	verbose := flag.BoolP("debug", "d", false, "Display debug output")
+	port := flag.IntP("port", "p", 8080, "Server listen port")
+	help := flag.BoolP("help", "h", false, "Display help")
+	test := flag.BoolP("test", "t", false, "Test, do not run webserver, discover and exit (requires 'kubectl proxy')")
+	flag.Parse()
+
+	// help requested?
+	if *help {
+		flag.PrintDefaults()
+		os.Exit(0)
+	}
+
+	// detecting k8s cluster
 	inCluster = kube.InCluster()
 	if inCluster == false {
 		log.Info().Msg("Running outside of Kubernetes cluster, make sure `kubectl proxy` is running...")
 	} else {
 		log.Info().Msg("Kubernetes cluster detected.")
 	}
-}
 
-func main() {
-	// TODO: flags
-	log.Info().
-		Str("port", "8080").
-		Msg("Listening on :8080")
+	// adjusting level
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	if *verbose {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	}
 
-	if err := http.ListenAndServe(":8080", http.HandlerFunc(promHandler)); err != nil {
-		log.Fatal().
-			Err(err).
-			Msg("Failed to start http server")
+	if *test {
+		metrics, err := collectMetrics()
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to collect metrics")
+			os.Exit(1)
+		}
+		if _, err := utils.WriteMetrics(os.Stdout, metrics); err != nil {
+			log.Error().Err(err).Msg("Failed to writing metrics")
+			os.Exit(1)
+		}
+	} else {
+		// formatting listen address
+		addr := fmt.Sprintf(":%d", *port)
+		log.Info().
+			Str("addr", addr).
+			Msg("Listening")
+
+		if err := http.ListenAndServe(addr, http.HandlerFunc(promHandler)); err != nil {
+			log.Fatal().
+				Err(err).
+				Str("addr", addr).
+				Msg("Failed to start http server")
+		}
 	}
 }
 
-//
 func promHandler(w http.ResponseWriter, r *http.Request) {
 	log.Info().
 		Str("uri", r.RequestURI).
 		Msg("New collect request")
 
-	svcList, err := utils.DiscoverServices(labelSelector, inCluster)
+	metrics, err := collectMetrics()
 	if err != nil {
-		log.Error().Str("selector", labelSelector).Err(err).Msg("Failed to discover")
 		w.WriteHeader(http.StatusInternalServerError)
 		if _, err := w.Write([]byte{}); err != nil {
 			log.Error().Str("uri", r.RequestURI).Err(err).Msg("Failed to write response")
@@ -62,16 +102,8 @@ func promHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Info().
-		Int("found", len(svcList)).
-		Msg("Eureka discovery finished")
-
-	appList := getApps(svcList)
-	metrics := getMetrics(appList)
-
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-
 	if _, err := utils.WriteMetrics(w, metrics); err != nil {
 		log.Error().
 			Str("uri", r.RequestURI).
@@ -80,7 +112,22 @@ func promHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-//
+func collectMetrics() ([]map[string]*io_prometheus_client.MetricFamily, error) {
+	svcList, err := utils.DiscoverServices(*namespace, *selector, inCluster)
+	if err != nil {
+		log.Error().Str("selector", *selector).Err(err).Msg("Failed to discover")
+	}
+
+	log.Info().
+		Int("found", len(svcList)).
+		Msg("Eureka discovery finished")
+
+	appList := getApps(svcList)
+	metrics := getMetrics(appList)
+	return metrics, nil
+}
+
+// for a given list of service endpoints call eureka and parse response
 func getApps(list []models.Endpoint) []models.Endpoint {
 	var wg sync.WaitGroup
 
@@ -119,7 +166,7 @@ func getApps(list []models.Endpoint) []models.Endpoint {
 	return resList
 }
 
-//
+// for a given list of endpoints, call and parse prometheus metrics
 func getMetrics(list []models.Endpoint) []map[string]*io_prometheus_client.MetricFamily {
 	var wg sync.WaitGroup
 

@@ -1,3 +1,6 @@
+.PHONY: minikube
+minikube: fake-build fake-apply mini-build mini-apply
+
 .PHONY: mini-build
 mini-build:
 	@eval $$(minikube docker-env --shell bash) ;\
