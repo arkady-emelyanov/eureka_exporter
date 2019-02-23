@@ -47,9 +47,12 @@ metadata:
     app: eureka-exporter
     subject: eureka-exporter
 spec:
+  type: NodePort
   ports:
     - port: 8080
+      protocol: TCP
       name: prometheus
+      nodePort: 31000
   selector:
     app: eureka-exporter
 
