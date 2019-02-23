@@ -49,15 +49,7 @@ func main() {
 func handleRequest() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// construct api client
-		client, err := kube.GetClient()
-		if err != nil {
-			log.Println("GetClient error:", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			if _, err := w.Write([]byte{}); err != nil {
-				log.Println("Error while serving response:", err)
-			}
-			return
-		}
+		client := kube.GetClient()
 
 		// detect current namespace
 		namespace := kube.GetNamespace()

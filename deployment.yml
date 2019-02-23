@@ -6,13 +6,6 @@ metadata:
 
 ### RBAC
 ---
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  namespace: monitoring
-  name: eureka-exporter-account
-
----
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -36,7 +29,14 @@ roleRef:
   name: eureka-exporter-role
   apiGroup: rbac.authorization.k8s.io
 
-### Service and Deployment
+### ServiceAccount, Service and Deployment
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: eureka-exporter-account
+  namespace: monitoring
+
 ---
 apiVersion: v1
 kind: Service

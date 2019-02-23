@@ -1,3 +1,6 @@
+.PHONY: minikube
+minikube: fake-build fake-apply mini-build mini-apply
+
 .PHONY: mini-build
 mini-build:
 	@eval $$(minikube docker-env --shell bash) ;\
@@ -10,6 +13,8 @@ mini-apply:
 .PHONY: mini-delete
 mini-delete:
 	kubectl delete ns monitoring
+	kubectl delete clusterrolebinding eureka-exporter-rolebinding
+	kubectl delete clusterrole eureka-exporter-role
 
 .PHONY: fake-build
 fake-build:
