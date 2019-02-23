@@ -86,6 +86,7 @@ metadata:
   namespace: cluster-one
   labels:
     app: eureka-service
+    subject: eureka-exporter
 spec:
   ports:
     - port: 8761
@@ -108,6 +109,7 @@ spec:
     metadata:
       labels:
         app: fake-eureka
+        subject: eureka-exporter
     spec:
       serviceAccountName: eureka-account
       containers:
@@ -126,6 +128,7 @@ metadata:
   namespace: cluster-two
   labels:
     app: eureka-service
+    subject: eureka-exporter
 spec:
   ports:
     - port: 8761
@@ -148,6 +151,7 @@ spec:
     metadata:
       labels:
         app: fake-eureka
+        subject: eureka-exporter
     spec:
       serviceAccountName: eureka-account
       containers:

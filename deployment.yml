@@ -4,6 +4,7 @@ kind: Namespace
 metadata:
   name: monitoring
 
+### RBAC
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -17,7 +18,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: eureka-exporter-role
 rules:
-  - apiGroups: [""]
+  - apiGroups: ["*"]
     resources: ["services"]
     verbs: ["get", "list"]
 
@@ -29,7 +30,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: eureka-exporter-account
-    apiGroup: rbac.authorization.k8s.io
+    namespace: monitoring
 roleRef:
   kind: ClusterRole
   name: eureka-exporter-role
@@ -37,3 +38,43 @@ roleRef:
 
 ### Service and Deployment
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eureka-exporter
+  namespace: monitoring
+  labels:
+    app: eureka-exporter
+    subject: eureka-exporter
+spec:
+  ports:
+    - port: 8080
+      name: prometheus
+  selector:
+    app: eureka-exporter
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eureka-exporter
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: eureka-exporter
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: eureka-exporter
+        subject: eureka-exporter
+    spec:
+      serviceAccountName: eureka-exporter-account
+      containers:
+        - name: eureka-exporter
+          image: localhost:5000/eureka_exporter:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: prometheus

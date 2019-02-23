@@ -27,6 +27,10 @@ type Endpoint struct {
 	Namespace string
 }
 
+func (e Endpoint) IsEmpty() bool {
+	return e.URL == ""
+}
+
 // GetEurekaUrlList returns list of Eureka services found across all namespaces
 func GetEurekaUrlList(selector string, inCluster bool) ([]Endpoint, error) {
 	client, err := kube.GetClient()
@@ -76,8 +80,8 @@ func GetEurekaUrlList(selector string, inCluster bool) ([]Endpoint, error) {
 	return endpointList, nil
 }
 
-// GetApplicationUrlList returns list of final endpoints for scrape
-func GetApplicationUrlList(appList []models.Instance, inCluster bool) []Endpoint {
+// FormatAppEndpoints returns list of final endpoints for scrape
+func FormatAppEndpoints(appList []models.Instance, inCluster bool) []Endpoint {
 	endpointList := make([]Endpoint, len(appList))
 	for i, app := range appList {
 		if app.Port.Enabled == false {

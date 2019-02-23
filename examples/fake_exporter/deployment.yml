@@ -25,6 +25,7 @@ spec:
     metadata:
       labels:
         app: fake-exporter
+        subject: eureka-exporter
     spec:
       containers:
         - name: fake-exporter
@@ -49,6 +50,7 @@ spec:
     metadata:
       labels:
         app: fake-exporter
+        subject: eureka-exporter
     spec:
       containers:
         - name: fake-exporter
