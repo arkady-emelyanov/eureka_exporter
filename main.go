@@ -23,23 +23,27 @@ const (
 )
 
 var (
-	httpTimeout = time.Duration(time.Duration(httpTimeoutMs) * time.Millisecond)
 	inCluster   = false
 
+	httpTimeout time.Duration
 	namespace *string
 	selector  *string
+	timeoutMs *int
 )
 
 func main() {
 	// global
 	namespace = flag.StringP("namespace", "n", "", "Namespace to search, default: search all")
 	selector = flag.StringP("selector", "s", labelSelector, "Eureka service selector")
+	timeoutMs = flag.IntP("timeout", "o", httpTimeoutMs, "HTTP call timeout, ms")
 
 	// local
 	verbose := flag.BoolP("debug", "d", false, "Display debug output")
-	port := flag.IntP("port", "p", 8080, "Server listen port")
+	port := flag.IntP("listen-port", "l", 8080, "Server listen port")
 	help := flag.BoolP("help", "h", false, "Display help")
-	test := flag.BoolP("test", "t", false, "Test, do not run webserver, discover and exit (requires 'kubectl proxy')")
+	test := flag.BoolP("test", "t", false, "Run metric collection write to stdout and exit (requires 'kubectl proxy')")
+
+	// parse
 	flag.Parse()
 
 	// help requested?
@@ -47,6 +51,9 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(0)
 	}
+
+	// setting up global timeout
+	httpTimeout = time.Duration(time.Duration(*timeoutMs) * time.Millisecond)
 
 	// detecting k8s cluster
 	inCluster = kube.InCluster()
@@ -113,7 +120,7 @@ func promHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func collectMetrics() ([]map[string]*io_prometheus_client.MetricFamily, error) {
-	svcList, err := utils.DiscoverServices(*namespace, *selector, inCluster)
+	svcList, err := utils.DiscoverServices(*namespace, *selector, httpTimeout, inCluster)
 	if err != nil {
 		log.Error().Str("selector", *selector).Err(err).Msg("Failed to discover")
 	}

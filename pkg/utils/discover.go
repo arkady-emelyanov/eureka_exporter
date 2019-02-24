@@ -2,7 +2,9 @@ package utils
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/rs/zerolog/log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -20,8 +22,12 @@ const (
 )
 
 // DiscoverServices returns list of Eureka services found across all namespaces
-func DiscoverServices(namespace, selector string, inCluster bool) ([]models.Endpoint, error) {
-	svcLabelSelector := metav1.ListOptions{LabelSelector: selector}
+func DiscoverServices(namespace, selector string, t time.Duration, inCluster bool) ([]models.Endpoint, error) {
+	svcLabelSelector := metav1.ListOptions{
+		TimeoutSeconds: proto.Int64(int64(t.Seconds())),
+		LabelSelector: selector,
+	}
+
 	svcList, err := kube.GetClient().CoreV1().Services(namespace).List(svcLabelSelector)
 	if err != nil {
 		return nil, err

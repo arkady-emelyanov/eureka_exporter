@@ -132,11 +132,12 @@ Run `./prometheus` and check Prometheus UI: `localhost:9090`.
 ```
 > go build
 > ./eureka_exporter -h
-  -c, --config string      Path to the kubernetes configuration file (default "/Users/arkady/.kube/config")
+  -c, --config string      Kubernetes config file path (when running outside of cluster) (default "/Users/user/.kube/config")
   -d, --debug              Display debug output
   -h, --help               Display help
+  -l, --listen-port int    Server listen port (default 8080)
   -n, --namespace string   Namespace to search, default: search all
-  -p, --port int           Server listen port (default 8080)
   -s, --selector string    Eureka service selector (default "app=eureka-service")
-  -t, --test               Test, do not run webserver, discover and exit (requires 'kubectl proxy')
+  -t, --test               Run metric collection write to stdout and exit (requires 'kubectl proxy')
+  -o, --timeout int        HTTP call timeout, ms (default 5000)
 ```

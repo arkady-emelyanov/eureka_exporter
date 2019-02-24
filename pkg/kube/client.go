@@ -28,14 +28,14 @@ func init() {
 			KubernetesConfigFlag,
 			"c",
 			filepath.Join(homeDir(), ".kube", "config"),
-			"Path to the kubernetes configuration file",
+			"Kubernetes config file path (when running outside of cluster)",
 		)
 	} else {
 		kubeconfig = flag.StringP(
 			KubernetesConfigFlag,
 			"c",
 			"",
-			"Path to the kubernetes configuration file",
+			"Kubernetes config file path (when running outside of cluster)",
 		)
 	}
 }
