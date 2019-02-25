@@ -1,4 +1,4 @@
-# Eureka Prometheus Exporter
+# Eureka Prometheus Aggregator and Exporter
 
 Experimental project for collecting metrics from 
 [Netflix Eureka](https://github.com/Netflix/eureka) attached application instances 
