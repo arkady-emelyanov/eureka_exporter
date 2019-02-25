@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	inClusterEurekaUrlFmt  = "http://%s.%s:%d"
-	outClusterEurekaUrlFmt = "http://localhost:8001/api/v1/namespaces/%s/services/%s:%d/proxy"
+	inClusterEurekaUrlFmt  = "http://%s:%d/eureka/apps"
+	outClusterEurekaUrlFmt = "http://localhost:8001/api/v1/namespaces/%s/services/%s:%d/proxy/eureka/apps"
 
 	inClusterServiceUrlFmt  = "http://%s:%s%s"
 	outClusterServiceUrlFmt = "http://localhost:8001/api/v1/namespaces/%s/pods/%s:%s/proxy%s"
@@ -25,7 +25,7 @@ const (
 func DiscoverServices(namespace, selector string, t time.Duration, inCluster bool) ([]models.Endpoint, error) {
 	svcLabelSelector := metav1.ListOptions{
 		TimeoutSeconds: proto.Int64(int64(t.Seconds())),
-		LabelSelector: selector,
+		LabelSelector:  selector,
 	}
 
 	svcList, err := kube.GetClient().CoreV1().Services(namespace).List(svcLabelSelector)
@@ -34,13 +34,21 @@ func DiscoverServices(namespace, selector string, t time.Duration, inCluster boo
 	}
 
 	res := make([]models.Endpoint, len(svcList.Items))
-
-	// take only the first port: eureka rest port
 	for i, s := range svcList.Items {
+		if s.Spec.ClusterIP == "" {
+			log.Warn().
+				Str("name", s.Name).
+				Str("namespace", s.Namespace).
+				Msg("Eureka doesn't have ClusterIP, skipping...")
+			continue
+		}
+
 		if len(s.Spec.Ports) > 1 {
 			log.Warn().
-				Int("count", len(s.Spec.Ports)).
-				Msg("Multiple ports found, only first will be taken")
+				Str("name", s.Name).
+				Str("namespace", s.Namespace).
+				Int("ports", len(s.Spec.Ports)).
+				Msg("Eureka has multiple ports in service spec, first one will be used")
 		}
 		for _, p := range s.Spec.Ports {
 			context := models.Context{
@@ -52,8 +60,7 @@ func DiscoverServices(namespace, selector string, t time.Duration, inCluster boo
 					Context: context,
 					URL: fmt.Sprintf(
 						inClusterEurekaUrlFmt,
-						s.Name,
-						s.Namespace,
+						s.Spec.ClusterIP,
 						p.Port,
 					),
 				}
@@ -75,7 +82,10 @@ func DiscoverServices(namespace, selector string, t time.Duration, inCluster boo
 	return res, nil
 }
 
-//
+// FormatEndpoint used to construct ClusterURL for found resource
+// for develop purpose, it may used to format links via kubectl proxy
+// but since there are no way to tell how pod will be named from Eureka response,
+// InstanceId field is used in fake_eureka.
 func FormatEndpoint(app models.Instance, inCluster bool) *models.Endpoint {
 	if app.Port.Enabled == false {
 		log.Info().
@@ -101,8 +111,9 @@ func FormatEndpoint(app models.Instance, inCluster bool) *models.Endpoint {
 	}
 
 	ctx := models.Context{
-		Namespace: app.Namespace,
-		Name:      app.Name,
+		Namespace:  app.Namespace,
+		Name:       app.Name,
+		InstanceId: app.InstanceId,
 	}
 
 	if inCluster {

@@ -14,18 +14,17 @@ import (
 	"github.com/arkady-emelyanov/eureka_exporter/pkg/models"
 )
 
-//
 func WriteMetrics(w io.Writer, metrics []map[string]*io_prometheus_client.MetricFamily) (int, error) {
 	var buf bytes.Buffer
-
-	log.Debug().
-		Msg("Encoding response...")
 
 	enc := expfmt.NewEncoder(&buf, expfmt.FmtText)
 	for _, m := range metrics {
 		for _, v := range m {
 			if err := enc.Encode(v); err != nil {
-				panic(err)
+				log.Error().
+					Err(err).
+					Msg("Encode metrics error")
+				return 0, err
 			}
 		}
 	}
@@ -37,7 +36,6 @@ func WriteMetrics(w io.Writer, metrics []map[string]*io_prometheus_client.Metric
 	return w.Write(buf.Bytes())
 }
 
-//
 func FetchApps(e models.Endpoint, t time.Duration) []models.Instance {
 	b, err := getResponse(e.URL, t)
 	if err != nil {
@@ -58,7 +56,7 @@ func FetchApps(e models.Endpoint, t time.Duration) []models.Instance {
 			Str("namespace", e.Namespace).
 			Str("name", e.Name).
 			Err(err).
-			Msg("Error parsing XML response")
+			Msg("Error parsing response")
 		return nil
 	}
 
@@ -66,14 +64,11 @@ func FetchApps(e models.Endpoint, t time.Duration) []models.Instance {
 		Str("url", e.URL).
 		Str("namespace", e.Namespace).
 		Str("name", e.Name).
-		Int("count", len(l)).
-		Err(err).
-		Msg("Found Prometheus-enabled applications")
+		Msgf("Found %d apps with metrics", len(l))
 
 	return l
 }
 
-//
 func FetchMetrics(e models.Endpoint, t time.Duration) map[string]*io_prometheus_client.MetricFamily {
 	b, err := getResponse(e.URL, t)
 	if err != nil {
@@ -95,7 +90,7 @@ func FetchMetrics(e models.Endpoint, t time.Duration) map[string]*io_prometheus_
 			Str("namespace", e.Namespace).
 			Str("name", e.Name).
 			Err(err).
-			Msg("Error parsing Prometheus response")
+			Msg("Error parsing response")
 
 		return nil
 	}
@@ -106,7 +101,7 @@ func FetchMetrics(e models.Endpoint, t time.Duration) map[string]*io_prometheus_
 func getResponse(url string, timeout time.Duration) ([]byte, error) {
 	log.Debug().
 		Str("url", url).
-		Msg("Dialing")
+		Msg("Calling URL")
 
 	c := http.Client{Timeout: timeout}
 	r, err := c.Get(url)

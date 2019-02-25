@@ -1,3 +1,11 @@
+TRAVIS_TAG ?= "latest"
+
+.PHONY: release
+release:
+	docker build -f Dockerfile . -t 0xfff/eureka_exporter:$(TRAVIS_TAG)
+	docker push 0xfff/eureka_exporter:$(TRAVIS_TAG)
+
+## Build and deploy exporter to Minikube cluster
 .PHONY: minikube
 minikube: fake-build fake-apply mini-build mini-apply
 
@@ -16,6 +24,7 @@ mini-delete:
 	kubectl delete clusterrolebinding eureka-exporter-rolebinding
 	kubectl delete clusterrole eureka-exporter-role
 
+## Build and deploy examples on Minikube cluster
 .PHONY: fake-build
 fake-build:
 	@eval $$(minikube docker-env --shell bash) ;\

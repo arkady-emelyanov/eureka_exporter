@@ -78,6 +78,8 @@ spec:
         - name: eureka-exporter
           image: localhost:5000/eureka_exporter:latest
           imagePullPolicy: IfNotPresent
+          command: ["/app"]
+          args: ["--debug", "--timeout=500"]
           ports:
             - containerPort: 8080
               name: prometheus

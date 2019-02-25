@@ -18,32 +18,27 @@ import (
 )
 
 const (
-	httpTimeoutMs = 5000
-	labelSelector = "app=eureka-service"
+	promContentType = "text/plain; version=0.0.4; charset=utf-8"
+	labelSelector   = "app=eureka-service"
+	httpTimeoutMs   = 5000
 )
 
 var (
-	inCluster   = false
-
-	httpTimeout time.Duration
-	namespace *string
-	selector  *string
-	timeoutMs *int
+	inCluster = false       // running inside of kubernetes cluster?
+	namespace *string       // namespace for search in, default is search everywhere
+	selector  *string       // selector for search, default is labelSelector
+	timeoutMs *int          // timeout for every REST operation
+	timeout   time.Duration // timeout for every REST operation, duration
 )
 
 func main() {
-	// global
-	namespace = flag.StringP("namespace", "n", "", "Namespace to search, default: search all")
-	selector = flag.StringP("selector", "s", labelSelector, "Eureka service selector")
-	timeoutMs = flag.IntP("timeout", "o", httpTimeoutMs, "HTTP call timeout, ms")
-
-	// local
 	verbose := flag.BoolP("debug", "d", false, "Display debug output")
+	selector = flag.StringP("selector", "s", labelSelector, "Eureka service selector")
+	namespace = flag.StringP("namespace", "n", "", "Namespace to search, default: search all")
+	timeoutMs = flag.IntP("timeout", "o", httpTimeoutMs, "HTTP call timeout, ms")
 	port := flag.IntP("listen-port", "l", 8080, "Server listen port")
 	help := flag.BoolP("help", "h", false, "Display help")
 	test := flag.BoolP("test", "t", false, "Run metric collection write to stdout and exit (requires 'kubectl proxy')")
-
-	// parse
 	flag.Parse()
 
 	// help requested?
@@ -53,7 +48,7 @@ func main() {
 	}
 
 	// setting up global timeout
-	httpTimeout = time.Duration(time.Duration(*timeoutMs) * time.Millisecond)
+	timeout = time.Duration(time.Duration(*timeoutMs) * time.Millisecond)
 
 	// detecting k8s cluster
 	inCluster = kube.InCluster()
@@ -70,6 +65,8 @@ func main() {
 	}
 
 	if *test {
+		// test run
+		// collect metrics and dump all metrics to stdout.
 		metrics, err := collectMetrics()
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to collect metrics")
@@ -80,7 +77,7 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		// formatting listen address
+		// normal run
 		addr := fmt.Sprintf(":%d", *port)
 		log.Info().
 			Str("addr", addr).
@@ -95,10 +92,11 @@ func main() {
 	}
 }
 
+// web-server handler
 func promHandler(w http.ResponseWriter, r *http.Request) {
 	log.Info().
 		Str("uri", r.RequestURI).
-		Msg("New collect request")
+		Msg("Collect request received")
 
 	metrics, err := collectMetrics()
 	if err != nil {
@@ -109,25 +107,37 @@ func promHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	w.Header().Set("Content-Type", promContentType)
 	w.WriteHeader(http.StatusOK)
+
 	if _, err := utils.WriteMetrics(w, metrics); err != nil {
 		log.Error().
-			Str("uri", r.RequestURI).
 			Err(err).
+			Str("uri", r.RequestURI).
 			Msg("Failed to write response")
-	}
-}
-
-func collectMetrics() ([]map[string]*io_prometheus_client.MetricFamily, error) {
-	svcList, err := utils.DiscoverServices(*namespace, *selector, httpTimeout, inCluster)
-	if err != nil {
-		log.Error().Str("selector", *selector).Err(err).Msg("Failed to discover")
 	}
 
 	log.Info().
-		Int("found", len(svcList)).
-		Msg("Eureka discovery finished")
+		Str("uri", r.RequestURI).
+		Msg("Collect request done")
+}
+
+// discover, scrape and return metrics
+func collectMetrics() ([]map[string]*io_prometheus_client.MetricFamily, error) {
+	svcList, err := utils.DiscoverServices(*namespace, *selector, timeout, inCluster)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("namespace", *namespace).
+			Str("selector", *selector).
+			Msg("Discover error")
+		return nil, err
+	}
+
+	log.Info().
+		Str("namespace", *namespace).
+		Str("selector", *selector).
+		Msgf("Found %d services", len(svcList))
 
 	appList := getApps(svcList)
 	metrics := getMetrics(appList)
@@ -156,7 +166,7 @@ func getApps(list []models.Endpoint) []models.Endpoint {
 	wg.Add(len(list))
 	for _, eurekaEndpoint := range list {
 		go func(eurekaEndpoint models.Endpoint) {
-			apps := utils.FetchApps(eurekaEndpoint, httpTimeout)
+			apps := utils.FetchApps(eurekaEndpoint, timeout)
 			for _, app := range apps {
 				if appEndpoint := utils.FormatEndpoint(app, inCluster); appEndpoint != nil {
 					resChan <- appEndpoint
@@ -195,7 +205,7 @@ func getMetrics(list []models.Endpoint) []map[string]*io_prometheus_client.Metri
 	wg.Add(len(list))
 	for _, appEndpoint := range list {
 		go func(appEndpoint models.Endpoint) {
-			if m := utils.FetchMetrics(appEndpoint, httpTimeout); m != nil {
+			if m := utils.FetchMetrics(appEndpoint, timeout); m != nil {
 				resChan <- m
 			}
 			wg.Done()
