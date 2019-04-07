@@ -1,13 +1,25 @@
-TRAVIS_TAG ?= "latest"
+TRAVIS_TAG ?= latest
+demo := demo
 
-.PHONY: release
-release:
+.PHONY: build-all
+build-all:
 	docker build -f Dockerfile . -t 0xfff/eureka_exporter:$(TRAVIS_TAG)
+	for d in $(demo); \
+	do \
+		$(MAKE) --directory=$$d; \
+	done
+
+.PHONY: publish-all
+publish-all:
 	docker push 0xfff/eureka_exporter:$(TRAVIS_TAG)
+	for d in $(demo); \
+	do \
+		$(MAKE) --directory=$$d; \
+	done
 
 ## Build and deploy exporter to Minikube cluster
 .PHONY: minikube
-minikube: fake-build fake-apply mini-build mini-apply
+minikube: mini-build mini-apply
 
 .PHONY: mini-build
 mini-build:
@@ -23,22 +35,3 @@ mini-delete:
 	kubectl delete ns monitoring
 	kubectl delete clusterrolebinding eureka-exporter-rolebinding
 	kubectl delete clusterrole eureka-exporter-role
-
-## Build and deploy examples on Minikube cluster
-.PHONY: fake-build
-fake-build:
-	@eval $$(minikube docker-env --shell bash) ;\
-	docker build -f examples/fake_exporter/Dockerfile -t localhost:5000/fake_exporter:latest .
-
-	@eval $$(minikube docker-env --shell bash) ;\
-	docker build -f examples/fake_eureka/Dockerfile -t localhost:5000/fake_eureka:latest .
-
-.PHONY: fake-apply
-fake-apply:
-	kubectl apply -f ./examples/fake_exporter/deployment.yml
-	kubectl apply -f ./examples/fake_eureka/deployment.yml
-
-.PHONY: fake-delete
-fake-delete:
-	kubectl delete ns cluster-one
-	kubectl delete ns cluster-two
