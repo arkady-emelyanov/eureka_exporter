@@ -7,7 +7,6 @@
     <artifactId>cloud-config-service</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
-
     <name>cloud-config-service</name>
 
     <description>Spring boot cloud config service</description>
