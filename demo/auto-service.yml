@@ -1,0 +1,23 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auto-service
+  namespace: prod
+spec:
+  selector:
+    matchLabels:
+      app: auto-service
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: auto-service
+    spec:
+      containers:
+        - name: auto-service
+          image: 0xfff/demo_auto_service:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CONFIG_HOST
+              value: cloud-config-service.prod

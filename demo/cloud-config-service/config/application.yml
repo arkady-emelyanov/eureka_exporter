@@ -2,7 +2,7 @@
 eureka:
   client:
     serviceUrl:
-      defaultZone: "http://${eureka-host:eureka-service}:${eureka-port:8761}/eureka/"
+      defaultZone: "http://${eureka-host:eureka-service.prod}:${eureka-port:8761}/eureka/"
   instance:
     metadata-map:
       prometheusURI: "/actuator/prometheus"

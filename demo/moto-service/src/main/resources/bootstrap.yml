@@ -3,5 +3,5 @@ spring:
     name: moto-service
   cloud:
     config:
-      uri: http://${config-host:cloud-config-service}:${config-port:8888}
+      uri: http://${CONFIG_HOST:cloud-config-service}:${CONFIG_PORT:8888}
       fail-fast: true
