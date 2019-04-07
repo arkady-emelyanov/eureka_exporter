@@ -22,6 +22,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>1.8</java.version>
         <spring-cloud.version>Greenwich.SR1</spring-cloud.version>
+        <start-class>com.epam.subbotnik.AutoApplication</start-class>
     </properties>
 
     <dependencies>
@@ -87,7 +88,7 @@
                         </goals>
                         <configuration>
                             <classifier>with-dependencies</classifier>
-                            <mainClass>com.epam.subbotnik.AutoApplication</mainClass>
+                            <mainClass>${start-class}</mainClass>
                         </configuration>
                     </execution>
                 </executions>
