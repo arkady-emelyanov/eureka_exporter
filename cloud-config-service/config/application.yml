@@ -1,4 +1,4 @@
-#Service discovery
+# Service discovery
 eureka:
   client:
     serviceUrl:
@@ -7,5 +7,5 @@ eureka:
     metadata-map:
       prometheusURI: "/actuator/prometheus"
 
-#Metrics related configurations
+# Metrics related configurations
 management.endpoints.web.exposure.include: health,info,prometheus
