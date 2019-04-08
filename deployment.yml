@@ -76,7 +76,7 @@ spec:
       serviceAccountName: eureka-exporter-account
       containers:
         - name: eureka-exporter
-          image: localhost:5000/eureka_exporter:latest
+          image: 0xfff/eureka_exporter:latest
           imagePullPolicy: IfNotPresent
           command: ["/app"]
           args: ["--debug", "--timeout=500"]

@@ -1,7 +1,0 @@
-spring:
-  application:
-    name: moto-service
-  cloud:
-    config:
-      uri: http://${config-host:cloud-config-service}:${config-port:8888}
-      fail-fast: true

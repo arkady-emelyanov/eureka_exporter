@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: auto-service
+  cloud:
+    config:
+      uri: http://${CONFIG_HOST:cloud-config-service}:${CONFIG_PORT:8888}
+      fail-fast: true
