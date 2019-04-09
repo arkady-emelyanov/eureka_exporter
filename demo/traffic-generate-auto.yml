@@ -1,0 +1,19 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gen-auto-traffic
+  namespace: prod
+spec:
+  template:
+    spec:
+      containers:
+        - name: ab
+          image: jordi/ab:latest
+          command:
+            - /usr/bin/ab
+            - -n 10000
+            - -c 1
+            - http://auto-service:8080/api/cars
+      restartPolicy: Never
+  backoffLimit: 0
