@@ -45,6 +45,31 @@ The goal is to collect metrics outside of Kubernetes (external monitoring).
     * Return all collected and relabeled metrics back to Prometheus
 
 
+## Running on minikube
+
+```
+$ minikube start
+
+## deploy system components
+$ kubectl create ns prod
+$ kubectl apply -f ./demo/cloud-config-service.yml
+$ kubectl apply -f ./demo/eureka-service.yml
+
+## wait a little and deploy services
+$ kubectl apply -f ./demo/auto-service.yml
+$ kubectl apply -f ./demo/moto-service.yml
+
+## check eureka
+$ kubectl proxy
+$ curl http://localhost:8001/api/v1/namespaces/prod/services/eureka-service:8761/proxy/eureka/apps
+
+## deploy exporter
+$ kubectl apply -f ./deployment.yml
+
+## get metrics
+$ curl http://$(minikube ip):31000/metrics
+```
+
 ## Options
 
 ```
